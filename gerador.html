@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Gerar lista do site — Projetos BR163/MS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #ffffff; --surface: #f5f5f5; --card: #efefef; --border: #d0d0d0;
+    --accent: #1e3a8a; --accent2: #00b8d9; --text: #1a1a2e; --muted: #6b7280;
+    --erro: #b91c1c; --aviso: #b45309; --info: #0369a1; --ok: #15803d;
+    --radius: 6px;
+    --font-main: 'Syne', system-ui, sans-serif;
+    --font-mono: 'DM Mono', ui-monospace, Consolas, monospace;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-main); line-height: 1.45; }
+  :focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }
+
+  header { border-bottom: 1px solid var(--border); padding: 18px 24px 14px; }
+  header h1 { font-size: 1.15rem; font-weight: 800; letter-spacing: 0.03em; }
+  header p { font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 24px; display: grid; gap: 28px; }
+  h2 { font-size: 0.95rem; font-weight: 700; margin-bottom: 10px; }
+  .passo { display: grid; grid-template-columns: 34px 1fr; gap: 14px; align-items: start; }
+  .passo-num { width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--accent); color: var(--accent);
+    font-family: var(--font-mono); font-weight: 500; display: grid; place-items: center; }
+  .passo.feito .passo-num { background: var(--accent); color: #fff; }
+
+  .esperados { font-size: 0.82rem; color: var(--muted); margin-bottom: 12px; max-width: 70ch; }
+  .esperados code { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text); background: var(--surface); padding: 1px 5px; border-radius: 3px; }
+
+  #zona { border: 1.5px dashed var(--border); border-radius: var(--radius); padding: 26px; text-align: center;
+    background: var(--surface); cursor: pointer; transition: border-color .15s, background .15s; }
+  #zona:hover, #zona.sobre { border-color: var(--accent); background: rgba(30,58,138,0.05); }
+  #zona strong { color: var(--accent); }
+  #zona span { display: block; font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+
+  #lista-arquivos { list-style: none; margin-top: 12px; display: grid; gap: 6px; }
+  #lista-arquivos li { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--border);
+    border-radius: var(--radius); font-size: 0.85rem; }
+  .tipo { font-family: var(--font-mono); font-size: 0.68rem; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+  .tipo.ok { background: rgba(21,128,61,0.1); color: var(--ok); }
+  .tipo.ruim { background: rgba(185,28,28,0.1); color: var(--erro); }
+  .nome-arq { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .remover { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; padding: 0 4px; }
+  .remover:hover { color: var(--erro); }
+  .falta { font-size: 0.8rem; color: var(--aviso); margin-top: 8px; }
+
+  .btn { padding: 10px 18px; border-radius: var(--radius); border: 1px solid var(--accent); background: var(--accent);
+    color: #fff; font-family: var(--font-main); font-weight: 700; font-size: 0.88rem; cursor: pointer; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.sec { background: #fff; color: var(--accent); }
+  .btn.sec:hover { background: rgba(30,58,138,0.06); }
+  .acoes { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  #msg-geracao { font-size: 0.82rem; color: var(--muted); }
+  #msg-geracao.erro { color: var(--erro); }
+
+  #resultado { display: none; }
+  .placar { display: flex; gap: 32px; flex-wrap: wrap; margin-bottom: 18px; }
+  .placar div { display: grid; }
+  .placar b { font-size: 1.6rem; font-weight: 800; line-height: 1.1; }
+  .placar small { font-size: 0.75rem; color: var(--muted); }
+  .placar .ok b { color: var(--ok); }
+  .placar .erro b { color: var(--erro); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  th { text-align: left; font-family: var(--font-mono); font-weight: 500; font-size: 0.68rem; color: var(--muted);
+    padding: 7px 8px; border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; }
+  td { padding: 7px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+  td.mono { font-family: var(--font-mono); font-size: 0.72rem; white-space: nowrap; }
+  .tabela-wrap { max-height: 480px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+  .fontes td:nth-child(n+3) { text-align: right; font-family: var(--font-mono); }
+
+  .filtro-grav { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 10px; }
+  .filtro-grav button { padding: 5px 12px; border-radius: 16px; border: 1px solid var(--border); background: #fff;
+    font-family: var(--font-mono); font-size: 0.72rem; cursor: pointer; color: var(--muted); }
+  .filtro-grav button.ativo { border-color: var(--accent); color: var(--accent); background: rgba(30,58,138,0.06); }
+  .grav { font-family: var(--font-mono); font-size: 0.68rem; font-weight: 500; }
+  .grav.Erro { color: var(--erro); } .grav.Aviso { color: var(--aviso); } .grav.Informação { color: var(--info); }
+  .explica { font-size: 0.8rem; color: var(--muted); max-width: 75ch; margin-bottom: 10px; }
+  .proximo { background: var(--surface); border-radius: var(--radius); padding: 14px 16px; font-size: 0.85rem; max-width: 75ch; }
+  .proximo ol { margin: 6px 0 0 18px; display: grid; gap: 3px; }
+  @media (max-width: 600px) { main { padding: 16px; } .passo { grid-template-columns: 1fr; } .passo-num { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Gerar lista do site</h1>
+  <p>Consulta de Documentos — A373 — BR163/MS</p>
+</header>
+
+<main>
+  <section class="passo" id="passo1">
+    <div class="passo-num">1</div>
+    <div>
+      <h2>Escolha os arquivos</h2>
+      <p class="esperados">
+        Listas mestras (<code>LD_ANO01…xlsx</code>, <code>LD_ANO02…xlsx</code>), caderno DER (<code>LD_DER-SP…xlsx</code>),
+        <code>CADERNOS_E_LICENCAS.xlsx</code> e o <code>estrutura.txt</code> gerado pelo <code>gerar_estrutura.bat</code>.
+        Os arquivos são lidos só neste computador; nada é enviado para a internet.
+      </p>
+      <div id="zona" tabindex="0" role="button" aria-label="Escolher arquivos">
+        <strong>Arraste os arquivos para cá</strong> ou clique para escolher
+        <span>Pode selecionar todos de uma vez</span>
+      </div>
+      <input type="file" id="entrada" multiple accept=".xlsx,.xlsm,.txt" hidden>
+      <ul id="lista-arquivos"></ul>
+      <p class="falta" id="falta"></p>
+    </div>
+  </section>
+
+  <section class="passo" id="passo2">
+    <div class="passo-num">2</div>
+    <div>
+      <h2>Gere a lista</h2>
+      <div class="acoes">
+        <button class="btn" id="btn-gerar" disabled>Gerar lista</button>
+        <span id="msg-geracao"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="passo" id="resultado">
+    <div class="passo-num">3</div>
+    <div>
+      <h2>Confira e baixe</h2>
+      <div class="placar">
+        <div><b id="r-total">0</b><small>documentos no site</small></div>
+        <div class="ok"><b id="r-link">0</b><small>abrem o PDF vigente</small></div>
+        <div class="erro"><b id="r-sem">0</b><small>sem PDF vigente na pasta</small></div>
+      </div>
+
+      <div class="acoes" style="margin-bottom:22px">
+        <button class="btn" id="btn-json">Baixar documentos.json</button>
+        <button class="btn sec" id="btn-relatorio">Baixar relatório de pendências (Excel)</button>
+      </div>
+
+      <h2>Por arquivo</h2>
+      <div class="tabela-wrap" style="max-height:none;margin-bottom:22px">
+        <table class="fontes"><thead><tr><th>Arquivo</th><th>Aba</th><th>Documentos</th><th>Com link</th></tr></thead><tbody id="t-fontes"></tbody></table>
+      </div>
+
+      <h2>Pendências</h2>
+      <p class="explica">
+        <b class="grav Erro">Erro</b>: o documento aparece no site sem botão de abrir.
+        <b class="grav Aviso">Aviso</b>: o site abre o PDF certo, mas a lista mestra precisa de ajuste.
+        <b class="grav Informação">Informação</b>: organização das pastas, sem efeito no site.
+      </p>
+      <div class="filtro-grav" id="filtro-grav"></div>
+      <div class="tabela-wrap">
+        <table><thead><tr><th>Gravidade</th><th>Tipo</th><th>Documento</th><th>Obra</th><th>Rev. lista</th><th>Rev. pasta</th><th>Detalhe</th></tr></thead><tbody id="t-pend"></tbody></table>
+      </div>
+
+      <div class="proximo" style="margin-top:22px">
+        <b>Para publicar</b>
+        <ol>
+          <li>No GitHub, abra o repositório do site e escolha <b>Add file › Upload files</b>.</li>
+          <li>Envie o <b>documentos.json</b> baixado (ele substitui o anterior).</li>
+          <li>Clique em <b>Commit changes</b>. Em 1 a 2 minutos os tablets recebem a lista nova.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════
+// GERADOR DA LISTA DO SITE — lógica central
+// Lê as listas mestras + estrutura de pastas e monta o documentos.json
+// ════════════════════════════════════════════════════════════════════════
+
+const CONFIG = {
+  // Endereço da pasta "11.Sala Tecnica" no SharePoint
+  SHAREPOINT_BASE: 'https://aterpa.sharepoint.com/sites/A373_Projetos/Documentos Compartilhados/11.Sala Tecnica',
+  // Pasta onde ficam os projetos de cada ano (relativa à 11.Sala Tecnica)
+  pastaDoAno: ano => `01.PROJETOS/ANO ${ano}`,
+  // Pastas nunca usadas para abrir projetos (testadas em cada nível do caminho)
+  PASTAS_IGNORADAS: [/^obsolet/i, /envios/i],
+  // Prefixos removidos para formar o caminho no servidor local do tablet
+  RAIZES_LOCAIS: [/^01\.PROJETOS\/ANO \d+\//i, /^07\.MEIO AMBIENTE\/01\.LICEN[ÇC]AS\//i],
+  // Grupo definido pelo tipo no código (ex.: ...-ACE-...). Demais: principal
+  GRUPO_POR_TIPO: { ACE: 'acessos' },
+  GRUPO_PADRAO: 'principal',
+  // Caderno DER-SP (lista LD_DER-SP)
+  DER: { pasta: '01.PROJETOS/ANO 01/DER Drenagem', obra: 'DER-SP', grupo: 'caderno',
+         disciplina: 'DRENAGEM', sigla: 'DR', ano: '' },
+};
+
+const SIGLAS_CONHECIDAS = new Set(['AC','AE','AQ','AR','AU','BF','CQ','CS','DB','DR','DS','DV','EE','EL','EM','ES','EX','GE','GG','GR','HI','IM','IN','IV','MA','OC','OU','PA','PV','RP','SE','SI','TE','TO','TR']);
+
+// ── utilidades ─────────────────────────────────────────────────────────────
+const nfc   = s => String(s ?? '').normalize('NFC');
+const low   = s => nfc(s).toLowerCase();
+const limpa = s => nfc(s).replace(/\s+/g, ' ').trim();
+const semAcento = s => nfc(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const normCab = s => semAcento(s).toUpperCase().replace(/[^A-Z0-9]/g, '');
+const normPasta = s => limpa(s).replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+
+function rankRev(r) {
+  const m = /^R(\d{1,3})(?:\.(\d{1,3}))?$/i.exec(String(r || '').trim());
+  return m ? [parseInt(m[1], 10), parseInt(m[2] || '0', 10)] : null;
+}
+function cmpRev(a, b) {
+  const x = rankRev(a), y = rankRev(b);
+  return x[0] - y[0] || x[1] - y[1];
+}
+function revValida(r) { return !!rankRev(r); }
+
+function pastaIgnorada(caminho) {
+  const partes = caminho.split('/');
+  partes.pop(); // nome do arquivo
+  return partes.some(p => CONFIG.PASTAS_IGNORADAS.some(rx => rx.test(p.trim())));
+}
+
+function caminhoLocal(rel) {
+  for (const rx of CONFIG.RAIZES_LOCAIS) if (rx.test(rel)) return rel.replace(rx, '');
+  return rel;
+}
+
+function linkSharePoint(rel) {
+  return CONFIG.SHAREPOINT_BASE.split('/').slice(0, 3).join('/') + '/' +
+    CONFIG.SHAREPOINT_BASE.split('/').slice(3).concat(rel.split('/'))
+      .map(encodeURIComponent).join('/');
+}
+
+function grupoPeloCodigo(codigo) {
+  for (const [tipo, grupo] of Object.entries(CONFIG.GRUPO_POR_TIPO)) {
+    if (new RegExp(`-${tipo}-`, 'i').test(codigo)) return grupo;
+  }
+  return CONFIG.GRUPO_PADRAO;
+}
+
+// ── leitura do estrutura.txt (saída do comando tree /F /A) ─────────────────
+const CP850 = "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜø£Ø×ƒáíóúñÑªº¿®¬½¼¡«»░▒▓│┤ÁÂÀ©╣║╗╝¢¥┐└┴┬├─┼ãÃ╚╔╩╦╠═╬¤ðÐÊËÈıÍÎÏ┘┌█▄¦Ì▀ÓßÔÒõÕµþÞÚÛÙýÝ¯´\u00AD±‗¾¶§÷¸°¨·¹³²■\u00A0";
+
+function decodificarTexto(bytes) {
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { /* não é UTF-8 */ }
+  const w1252 = new TextDecoder('windows-1252').decode(bytes);
+  let cp850 = '';
+  for (const b of bytes) cp850 += b < 128 ? String.fromCharCode(b) : CP850[b - 128];
+  const pontos = t => (t.match(/[çãõáéíóúâêôÇÃÕÁÉÍÓÚÂÊÔ]/g) || []).length
+                    - 3 * (t.match(/[░▒▓│┤╣║╗╝┐└┴┬├─┼╚╔╩╦╠═╬┘┌█▄▀■ƒ¤]/g) || []).length;
+  return pontos(cp850) > pontos(w1252) ? cp850 : w1252;
+}
+
+function lerEstrutura(texto) {
+  const linhas = texto.replace(/\r/g, '').split('\n');
+  let i = linhas.findIndex(l => /^[A-Za-z]:/.test(l.trim()));
+  if (i < 0) throw new Error('O arquivo de estrutura não parece ter sido gerado pelo comando tree.');
+  const arquivos = [];
+  const pilha = [];
+  for (const linha of linhas.slice(i + 1)) {
+    if (!linha.replace(/[|\s]/g, '')) continue;
+    const m = /^((?:[| ] {3})*)[+\\]---(.*)$/.exec(linha);
+    if (m) {
+      const nivel = m[1].length / 4;
+      pilha.length = nivel;
+      pilha.push(nfc(m[2]).trimEnd());
+      continue;
+    }
+    const nome = nfc(linha.replace(/^[|\s]+/, '')).trimEnd();
+    if (nome) arquivos.push([...pilha, nome].join('/'));
+  }
+  if (!arquivos.length) throw new Error('Nenhum arquivo encontrado no arquivo de estrutura. Gere-o com tree /F /A.');
+  return arquivos;
+}
+
+// ── índice dos arquivos ────────────────────────────────────────────────────
+const RX_PROJETO = /^(.*?-[A-Z0-9]{2}-\d{3})[-._ ]?(R\d{1,2}(?:\.\d{1,3})?)(?![0-9])/i;
+
+function montarIndice(arquivos) {
+  const validos = arquivos.filter(p => !pastaIgnorada(p));
+  const porCodigo = new Map();   // CÓDIGO → [{rev, caminho}]  (somente PDFs)
+  const porNome = new Map();     // nome em minúsculas → [caminho]
+  const porCodigoTodos = new Map(); // CÓDIGO → [{rev, caminho}] incluindo ignorados (para diagnóstico)
+  for (const caminho of arquivos) {
+    const nome = caminho.split('/').pop();
+    if (!/\.pdf$/i.test(nome)) continue;
+    const m = RX_PROJETO.exec(nome.replace(/\.pdf$/i, ''));
+    if (m) {
+      const cod = m[1].toUpperCase();
+      if (!porCodigoTodos.has(cod)) porCodigoTodos.set(cod, []);
+      porCodigoTodos.get(cod).push({ rev: m[2].toUpperCase(), caminho });
+    }
+  }
+  for (const caminho of validos) {
+    const nome = caminho.split('/').pop();
+    const ln = low(nome);
+    if (!porNome.has(ln)) porNome.set(ln, []);
+    porNome.get(ln).push(caminho);
+    if (!/\.pdf$/i.test(nome)) continue;
+    const m = RX_PROJETO.exec(nome.replace(/\.pdf$/i, ''));
+    if (!m) continue;
+    const cod = m[1].toUpperCase();
+    if (!porCodigo.has(cod)) porCodigo.set(cod, []);
+    porCodigo.get(cod).push({ rev: m[2].toUpperCase(), caminho });
+  }
+  return { total: arquivos.length, validos: validos.length, porCodigo, porNome, porCodigoTodos };
+}
+
+// Escolhe o melhor caminho entre cópias do mesmo arquivo
+function melhorCaminho(caminhos, obra) {
+  const O = String(obra || '').toUpperCase();
+  const nota = c => {
+    const partes = c.toUpperCase().split('/');
+    const casaObra = O && partes.some(p => p === O || p.endsWith('-' + O)) ? 0 : 1;
+    return [casaObra, partes.length, c.length];
+  };
+  return [...caminhos].sort((a, b) => {
+    const x = nota(a), y = nota(b);
+    return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
+  })[0];
+}
+
+function naPasta(caminho, pasta) {
+  return low(caminho).startsWith(low(normPasta(pasta)) + '/');
+}
+
+// ── leitura das planilhas (SheetJS) ────────────────────────────────────────
+function linhasDaAba(XLSX, ws) {
+  return XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '', blankrows: false });
+}
+
+function tabelaComCabecalho(linhas, colunaChave) {
+  const chave = normCab(colunaChave);
+  const iCab = linhas.findIndex(l => l.some(c => normCab(c) === chave));
+  if (iCab < 0) return null;
+  const cab = linhas[iCab].map(normCab);
+  return linhas.slice(iCab + 1).map(l => {
+    const o = {};
+    cab.forEach((h, j) => { if (h && !(h in o)) o[h] = limpa(l[j]); });
+    o.__extra = l.slice(cab.length).map(limpa);
+    o.__colE = limpa(l[4]);
+    return o;
+  });
+}
+
+function identificarAbas(XLSX, wb, nomeArquivo) {
+  const achadas = [];
+  for (const nome of wb.SheetNames) {
+    let m;
+    if ((m = /^LD_ANO\s*(\d+)$/i.exec(nome.trim()))) achadas.push({ tipo: 'LD', ano: m[1].padStart(2, '0'), aba: nome });
+    else if (/^LD_DER/i.test(nome.trim())) achadas.push({ tipo: 'DER', aba: nome });
+    else if (/^COMPLEMENTOS$/i.test(nome.trim())) achadas.push({ tipo: 'COMPLEMENTOS', aba: nome });
+  }
+  return achadas.map(a => ({ ...a, arquivo: nomeArquivo, linhas: linhasDaAba(XLSX, wb.Sheets[a.aba]) }));
+}
+
+// ── geração ────────────────────────────────────────────────────────────────
+function gerar({ fontes, arquivosEstrutura, nomeEstrutura }) {
+  const idx = montarIndice(arquivosEstrutura);
+  const documentos = [];
+  const pendencias = [];
+  const resumo = { porFonte: [] };
+
+  const pend = (tipo, gravidade, d, extra = {}) => pendencias.push({
+    tipo, gravidade, fonte: d.fonte, ano: d.ano, grupo: d.grupo, obra: d.obra,
+    documento: d.codigo, titulo: d.titulo, rev_lista: d.revisao_lista ?? '', rev_pasta: '',
+    detalhe: '', caminho: '', ...extra });
+
+  const docBase = o => ({
+    codigo: o.codigo, titulo: o.titulo, disciplina: o.disciplina, sigla: o.sigla,
+    ano: o.ano, grupo: o.grupo, obra: o.obra, revisao: o.revisao,
+    palavras_chave: o.palavras_chave || '', link: '', arquivo: '', aviso: '' });
+
+  const abrir = (doc, rel) => { doc.link = linkSharePoint(rel); doc.arquivo = caminhoLocal(rel); };
+
+  // ---- Listas mestras de projetos ----
+  for (const f of fontes.filter(f => f.tipo === 'LD')) {
+    const tab = tabelaComCabecalho(f.linhas, 'DOCUMENTO') || [];
+    let n = 0, ok = 0;
+    const vistos = new Set();
+    for (const r of tab) {
+      const codigo = (r.DOCUMENTO || '').toUpperCase();
+      if (!codigo || !/^[A-Z0-9]/.test(codigo)) continue;
+      n++;
+      const obra = r.OBRA || '';
+      const revLista = (r.REVISAO || '').toUpperCase();
+      const d = {
+        fonte: f.arquivo, codigo, titulo: r.TITULO || '', disciplina: r.DISCIPLINA || '',
+        sigla: (r.SIGLA || '').toUpperCase(), ano: f.ano, obra,
+        grupo: (r.GRUPO || '').toLowerCase() || grupoPeloCodigo(codigo),
+        revisao_lista: revLista, palavras_chave: r.PALAVRASCHAVE || '' };
+      const chave = codigo + '|' + obra.toUpperCase();
+      if (vistos.has(chave)) { pend('Linha duplicada na lista', 'Aviso', d, { detalhe: 'Mesmo documento e obra em mais de uma linha; mantida a primeira.' }); continue; }
+      vistos.add(chave);
+      if (d.sigla && !SIGLAS_CONHECIDAS.has(d.sigla)) pend('Sigla não reconhecida', 'Aviso', d, { detalhe: `Sigla "${d.sigla}" não tem botão de filtro no site.` });
+
+      const doc = docBase({ ...d, revisao: revLista });
+      const pasta = CONFIG.pastaDoAno(f.ano);
+      let cands = (idx.porCodigo.get(codigo) || []).filter(c => naPasta(c.caminho, pasta));
+      const daObra = cands.filter(c => obra && c.caminho.toUpperCase().split('/').some(p => p === obra.toUpperCase() || p.endsWith('-' + obra.toUpperCase())));
+      if (daObra.length) cands = daObra;
+
+      if (!cands.length) {
+        const noObsoleto = (idx.porCodigoTodos.get(codigo) || []).filter(c => naPasta(c.caminho, pasta));
+        doc.aviso = 'PDF vigente não encontrado na pasta';
+        pend('Documento não encontrado na pasta', 'Erro', d, {
+          detalhe: noObsoleto.length ? `Só existe em pasta ignorada (obsoleto/envios): ${[...new Set(noObsoleto.map(c => c.rev))].sort().join(', ')}` : 'Nenhum PDF com este código fora do OBSOLETO.' });
+        documentos.push(doc); continue;
+      }
+
+      const revs = [...new Set(cands.map(c => c.rev))].sort(cmpRev);
+      const maisNova = revs[revs.length - 1];
+      const listaValida = revValida(revLista);
+
+      if (listaValida && cmpRev(maisNova, revLista) < 0) {
+        doc.aviso = `Revisão ${revLista} ainda não está na pasta`;
+        pend('Revisão da lista não está na pasta', 'Erro', d, { rev_pasta: maisNova,
+          detalhe: `A pasta só tem revisão anterior (${revs.join(', ')}). O site não abre revisão superada.` });
+        documentos.push(doc); continue;
+      }
+
+      const escolhido = melhorCaminho(cands.filter(c => c.rev === maisNova).map(c => c.caminho), obra);
+      abrir(doc, escolhido);
+      doc.revisao = maisNova;
+      ok++;
+
+      if (!listaValida) pend('Revisão inválida na lista', 'Aviso', d, { rev_pasta: maisNova, caminho: escolhido,
+        detalhe: `Revisão da lista "${revLista || '(vazia)'}" não reconhecida; o site abre a mais nova da pasta.` });
+      else if (cmpRev(maisNova, revLista) > 0) pend('Revisão mais nova na pasta', 'Aviso', d, { rev_pasta: maisNova, caminho: escolhido,
+        detalhe: `O site abre a ${maisNova}. Atualize a lista mestra.` });
+      if (revs.length > 1) pend('Revisão anterior fora do OBSOLETO', 'Informação', d, { rev_pasta: maisNova,
+        caminho: cands.filter(c => c.rev !== maisNova).map(c => c.caminho).join(' | '),
+        detalhe: `Revisões fora do OBSOLETO: ${revs.join(', ')}. O site abre só a ${maisNova}.` });
+
+      documentos.push(doc);
+    }
+    resumo.porFonte.push({ fonte: f.arquivo, aba: f.aba, documentos: n, com_link: ok });
+  }
+
+  // ---- Itens localizados por nome de arquivo (DER e complementos) ----
+  const porNomeNaPasta = (arquivo, pasta, d) => {
+    const nome = low(limpa(arquivo).split(/[\\/]/).pop());
+    if (!nome) { pend('Nome do arquivo não informado', 'Erro', d); return null; }
+    const achados = (idx.porNome.get(nome) || []).filter(c => naPasta(c, pasta));
+    if (!achados.length) { pend('Arquivo não encontrado na pasta', 'Erro', d, { detalhe: `Procurado "${limpa(arquivo)}" em ${normPasta(pasta)}` }); return null; }
+    return melhorCaminho(achados, '');
+  };
+
+  for (const f of fontes.filter(f => f.tipo === 'DER')) {
+    const tab = tabelaComCabecalho(f.linhas, 'PROJETO') || [];
+    let n = 0, ok = 0;
+    for (const r of tab) {
+      if (!r.PROJETO) continue;
+      n++;
+      const C = CONFIG.DER;
+      const d = { fonte: f.arquivo, codigo: r.PROJETO, titulo: (r.__colE || r.TITULO || '').toUpperCase(),
+        disciplina: C.disciplina, sigla: C.sigla, ano: C.ano, grupo: C.grupo, obra: C.obra,
+        revisao_lista: r.REVISAO || '' };
+      const doc = docBase({ ...d, revisao: d.revisao_lista });
+      const rel = porNomeNaPasta(r.ARQUIVO, C.pasta, d);
+      if (rel) { abrir(doc, rel); ok++; } else doc.aviso = 'PDF não encontrado na pasta';
+      documentos.push(doc);
+    }
+    resumo.porFonte.push({ fonte: f.arquivo, aba: f.aba, documentos: n, com_link: ok });
+  }
+
+  for (const f of fontes.filter(f => f.tipo === 'COMPLEMENTOS')) {
+    const tab = tabelaComCabecalho(f.linhas, 'DOCUMENTO') || [];
+    let n = 0, ok = 0;
+    for (const r of tab) {
+      if (!r.DOCUMENTO) continue;
+      n++;
+      const anoTxt = (r.ANO || '').replace(/\D/g, '');
+      const d = { fonte: f.arquivo, codigo: r.DOCUMENTO, titulo: r.TITULO || '', disciplina: r.DISCIPLINA || '',
+        sigla: (r.SIGLA || '').toUpperCase(), ano: anoTxt ? anoTxt.padStart(2, '0') : '',
+        grupo: (r.GRUPO || 'caderno').toLowerCase(), obra: r.OBRA || '',
+        revisao_lista: r.REVISAO || '', palavras_chave: r.PALAVRASCHAVE || '' };
+      const doc = docBase({ ...d, revisao: d.revisao_lista });
+      const rel = porNomeNaPasta(r.ARQUIVO, r.PASTA || '', d);
+      if (rel) { abrir(doc, rel); ok++; } else doc.aviso = 'PDF não encontrado na pasta';
+      documentos.push(doc);
+    }
+    resumo.porFonte.push({ fonte: f.arquivo, aba: f.aba, documentos: n, com_link: ok });
+  }
+
+  const ordemGrav = { Erro: 0, Aviso: 1, 'Informação': 2 };
+  pendencias.sort((a, b) => ordemGrav[a.gravidade] - ordemGrav[b.gravidade] || a.tipo.localeCompare(b.tipo) || String(a.documento).localeCompare(String(b.documento)));
+
+  resumo.total = documentos.length;
+  resumo.com_link = documentos.filter(d => d.link).length;
+  resumo.sem_link = resumo.total - resumo.com_link;
+  resumo.estrutura = { arquivo: nomeEstrutura, arquivos: idx.total, fora_de_obsoleto: idx.validos };
+
+  const saida = {
+    versao: 2,
+    gerado_em: new Date().toISOString(),
+    fontes: [...new Set(fontes.map(f => f.arquivo)), nomeEstrutura].filter(Boolean),
+    total: documentos.length,
+    documentos,
+  };
+  return { saida, pendencias, resumo };
+}
+
+if (typeof module !== 'undefined') module.exports = { CONFIG, decodificarTexto, lerEstrutura, identificarAbas, gerar, rankRev };
+
+// ════════════════════════════════════════════════════════════════════════
+// INTERFACE DO GERADOR
+// ════════════════════════════════════════════════════════════════════════
+const selecionados = new Map(); // nome → { file, tipo, rotulo, ok, dados }
+let ultimo = null;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+async function analisarArquivo(file) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  if (/\.txt$/i.test(file.name)) {
+    try {
+      const arquivos = lerEstrutura(decodificarTexto(buf));
+      return { tipo: 'ESTRUTURA', rotulo: `Estrutura de pastas — ${arquivos.length.toLocaleString('pt-BR')} arquivos`, ok: true, dados: arquivos };
+    } catch (e) { return { tipo: '?', rotulo: e.message, ok: false }; }
+  }
+  if (typeof XLSX === 'undefined') return { tipo: '?', rotulo: 'Leitor de planilhas não carregou. Verifique a internet e recarregue a página.', ok: false };
+  try {
+    const wb = XLSX.read(buf, { type: 'array' });
+    const fontes = identificarAbas(XLSX, wb, file.name);
+    if (!fontes.length) return { tipo: '?', rotulo: 'Nenhuma aba reconhecida (LD_ANO01, LD_ANO02, LD_DERSP ou COMPLEMENTOS)', ok: false };
+    const rot = fontes.map(f => f.tipo === 'LD' ? `Lista mestra Ano ${f.ano}` : f.tipo === 'DER' ? 'Caderno DER-SP' : 'Cadernos e licenças').join(' + ');
+    return { tipo: 'PLANILHA', rotulo: rot, ok: true, dados: fontes };
+  } catch (e) {
+    return { tipo: '?', rotulo: 'Não foi possível ler a planilha: ' + e.message, ok: false };
+  }
+}
+
+async function adicionar(files) {
+  for (const f of files) {
+    selecionados.set(f.name, { file: f, rotulo: 'lendo…', ok: false, tipo: '…' });
+    desenharArquivos();
+    selecionados.set(f.name, { file: f, ...(await analisarArquivo(f)) });
+    desenharArquivos();
+  }
+}
+
+function desenharArquivos() {
+  const ul = $('lista-arquivos');
+  ul.innerHTML = [...selecionados.entries()].map(([nome, s]) => `
+    <li><span class="tipo ${s.ok ? 'ok' : 'ruim'}">${s.ok ? '✓' : (s.tipo === '…' ? '…' : '✕')}</span>
+      <span class="nome-arq" title="${esc(nome)}"><b>${esc(nome)}</b><br><small>${esc(s.rotulo)}</small></span>
+      <button class="remover" data-nome="${esc(nome)}" aria-label="Remover ${esc(nome)}">×</button></li>`).join('');
+  ul.querySelectorAll('.remover').forEach(b => b.onclick = () => { selecionados.delete(b.dataset.nome); desenharArquivos(); });
+
+  const validos = [...selecionados.values()].filter(s => s.ok);
+  const temEstrutura = validos.some(s => s.tipo === 'ESTRUTURA');
+  const fontes = validos.filter(s => s.tipo === 'PLANILHA').flatMap(s => s.dados);
+  const temLD = fontes.some(f => f.tipo === 'LD');
+  const avisos = [];
+  if (!temLD) avisos.push('Falta ao menos uma lista mestra (LD_ANO…).');
+  if (!temEstrutura) avisos.push('Falta o estrutura.txt.');
+  if (temLD && !fontes.some(f => f.tipo === 'DER')) avisos.push('Sem LD_DER-SP: o caderno DER não aparecerá no site.');
+  if (temLD && !fontes.some(f => f.tipo === 'COMPLEMENTOS')) avisos.push('Sem CADERNOS_E_LICENCAS: DNIT e licenças não aparecerão no site.');
+  const anos = fontes.filter(f => f.tipo === 'LD').map(f => f.ano);
+  const repetidos = anos.filter((a, i) => anos.indexOf(a) !== i);
+  if (repetidos.length) avisos.push(`Há mais de uma lista do Ano ${[...new Set(repetidos)].join(', ')}. Deixe só a mais recente.`);
+  $('falta').textContent = avisos.join(' ');
+  $('btn-gerar').disabled = !(temLD && temEstrutura) || repetidos.length > 0;
+  $('passo1').classList.toggle('feito', temLD && temEstrutura);
+}
+
+const zona = $('zona');
+zona.onclick = () => $('entrada').click();
+zona.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('entrada').click(); } };
+$('entrada').onchange = e => { adicionar([...e.target.files]); e.target.value = ''; };
+['dragenter', 'dragover'].forEach(ev => zona.addEventListener(ev, e => { e.preventDefault(); zona.classList.add('sobre'); }));
+['dragleave', 'drop'].forEach(ev => zona.addEventListener(ev, e => { e.preventDefault(); zona.classList.remove('sobre'); }));
+zona.addEventListener('drop', e => adicionar([...e.dataTransfer.files]));
+
+$('btn-gerar').onclick = () => {
+  const msg = $('msg-geracao');
+  msg.className = ''; msg.textContent = 'Gerando…';
+  setTimeout(() => {
+    try {
+      const validos = [...selecionados.entries()].filter(([, s]) => s.ok);
+      const [nomeEstrutura, est] = validos.find(([, s]) => s.tipo === 'ESTRUTURA');
+      const fontes = validos.filter(([, s]) => s.tipo === 'PLANILHA').flatMap(([, s]) => s.dados);
+      ultimo = gerar({ fontes, arquivosEstrutura: est.dados, nomeEstrutura });
+      mostrarResultado(ultimo);
+      msg.textContent = `Pronto às ${new Date().toLocaleTimeString('pt-BR')}.`;
+      $('passo2').classList.add('feito');
+      $('resultado').style.display = 'grid';
+      $('resultado').scrollIntoView({ behavior: 'smooth' });
+    } catch (e) {
+      msg.className = 'erro';
+      msg.textContent = 'Não foi possível gerar: ' + e.message;
+      console.error(e);
+    }
+  }, 30);
+};
+
+let filtroGrav = 'Todas';
+function mostrarResultado({ resumo, pendencias }) {
+  $('r-total').textContent = resumo.total.toLocaleString('pt-BR');
+  $('r-link').textContent = resumo.com_link.toLocaleString('pt-BR');
+  $('r-sem').textContent = resumo.sem_link.toLocaleString('pt-BR');
+  $('t-fontes').innerHTML = resumo.porFonte.map(f =>
+    `<tr><td>${esc(f.fonte)}</td><td>${esc(f.aba)}</td><td>${f.documentos.toLocaleString('pt-BR')}</td><td>${f.com_link.toLocaleString('pt-BR')}</td></tr>`).join('');
+
+  const cont = { Todas: pendencias.length };
+  pendencias.forEach(p => cont[p.gravidade] = (cont[p.gravidade] || 0) + 1);
+  const opcoes = ['Todas', 'Erro', 'Aviso', 'Informação'].filter(g => g === 'Todas' || cont[g]);
+  if (!opcoes.includes(filtroGrav)) filtroGrav = 'Todas';
+  $('filtro-grav').innerHTML = opcoes.map(g =>
+    `<button class="${g === filtroGrav ? 'ativo' : ''}" data-g="${g}">${g} (${cont[g] || 0})</button>`).join('');
+  $('filtro-grav').querySelectorAll('button').forEach(b => b.onclick = () => { filtroGrav = b.dataset.g; mostrarResultado(ultimo); });
+
+  const lista = pendencias.filter(p => filtroGrav === 'Todas' || p.gravidade === filtroGrav);
+  $('t-pend').innerHTML = lista.length ? lista.map(p => `<tr>
+      <td><span class="grav ${esc(p.gravidade)}">${esc(p.gravidade)}</span></td>
+      <td>${esc(p.tipo)}</td><td class="mono">${esc(p.documento)}</td><td class="mono">${esc(p.obra)}</td>
+      <td class="mono">${esc(p.rev_lista)}</td><td class="mono">${esc(p.rev_pasta)}</td><td>${esc(p.detalhe)}</td></tr>`).join('')
+    : '<tr><td colspan="7">Nenhuma pendência. Tudo certo para publicar.</td></tr>';
+}
+
+function baixar(nome, conteudo, tipo) {
+  const url = URL.createObjectURL(new Blob([conteudo], { type: tipo }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: nome });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+$('btn-json').onclick = () => ultimo && baixar('documentos.json', JSON.stringify(ultimo.saida), 'application/json');
+
+$('btn-relatorio').onclick = () => {
+  if (!ultimo) return;
+  const linhas = ultimo.pendencias.map(p => ({
+    'Gravidade': p.gravidade, 'Tipo': p.tipo, 'Documento': p.documento, 'Título': p.titulo,
+    'Ano': p.ano, 'Grupo': p.grupo, 'Obra': p.obra, 'Revisão na lista': p.rev_lista,
+    'Revisão na pasta': p.rev_pasta, 'Detalhe': p.detalhe, 'Caminho': p.caminho, 'Lista de origem': p.fonte }));
+  const ws = XLSX.utils.json_to_sheet(linhas.length ? linhas : [{ 'Gravidade': 'Nenhuma pendência' }]);
+  ws['!cols'] = [10, 30, 40, 50, 6, 10, 12, 12, 12, 60, 70, 28].map(w => ({ wch: w }));
+  if (linhas.length) ws['!autofilter'] = { ref: ws['!ref'] };
+  const resumo = XLSX.utils.aoa_to_sheet([
+    ['Relatório gerado em', new Date().toLocaleString('pt-BR')],
+    ['Documentos no site', ultimo.resumo.total],
+    ['Abrem o PDF vigente', ultimo.resumo.com_link],
+    ['Sem PDF vigente na pasta', ultimo.resumo.sem_link],
+    [],
+    ['Arquivo', 'Aba', 'Documentos', 'Com link'],
+    ...ultimo.resumo.porFonte.map(f => [f.fonte, f.aba, f.documentos, f.com_link]),
+    [],
+    ['Estrutura de pastas', ultimo.resumo.estrutura.arquivo],
+    ['Arquivos listados', ultimo.resumo.estrutura.arquivos],
+    ['Fora de OBSOLETO e envios', ultimo.resumo.estrutura.fora_de_obsoleto],
+  ]);
+  resumo['!cols'] = [{ wch: 30 }, { wch: 40 }, { wch: 12 }, { wch: 12 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, resumo, 'Resumo');
+  XLSX.utils.book_append_sheet(wb, ws, 'Pendências');
+  const data = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `pendencias_lista_site_${data}.xlsx`);
+};
+
+desenharArquivos();
+</script>
+</body>
+</html>
