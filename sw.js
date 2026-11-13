@@ -1,8 +1,8 @@
 // Service worker — Consulta de Documentos BR163/MS
 // Mantém uma cópia do site e da lista para uso sem internet.
 // Sempre tenta a internet primeiro; sem conexão, usa a cópia guardada.
-const VERSAO = 'projetos-v2-2026-11-13';
-const ARQUIVOS_BASE = ['./', './index.html', './documentos.json', './manifest.json', './Aterpa.png', './icon-192.png', './icon-512.png'];
+const VERSAO = 'projetos-v2-2026-11-13b';
+const ARQUIVOS_BASE = ['./', './index.html', './documentos.json', './manifest.json', './Aterpa.png', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 const FONTES = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', event => {
